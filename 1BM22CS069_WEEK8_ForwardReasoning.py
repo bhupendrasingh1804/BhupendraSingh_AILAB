@@ -1,83 +1,102 @@
-class KnowledgeBase:
-    def __init__(self):
-        self.facts = set()
-        self.rules = []
+class ForwardChaining:
+    def __init__(self, kb, query):
+        """
+        Initialize with knowledge base (kb) and query.
+        kb: list of definite clauses in the form of tuples (premises, conclusion)
+        query: the fact to prove
+        """
+        self.kb = kb  # Knowledge Base: list of rules [(premises, conclusion), ...]
+        self.query = query  # Query to prove
+        self.facts = set()  # Initially empty set of known facts
+        self.new_facts = set()  # Newly inferred facts
 
-    def add_fact(self, fact):
-        """Add a fact to the knowledge base."""
-        self.facts.add(fact)
+    def standardize_variables(self, rule):
+        """
+        Standardizes variables in a rule by renaming them to avoid conflicts.
+        Returns the standardized rule.
+        """
+        premises, conclusion = rule
+        return premises, conclusion  # Simplified: No renaming in this implementation
 
-    def add_rule(self, premise, conclusion):
-        """Add a rule with premises and conclusions to the knowledge base."""
-        self.rules.append((premise, conclusion))
+    def is_fact_derived(self, fact):
+        """
+        Checks if a fact is already derived (exists in known facts).
+        """
+        return fact in self.facts
 
-    def forward_chain(self, query):
-        """Performs forward chaining to infer facts and check if the query is provable."""
-        # Keep track of facts that can be inferred
-        inferred = set(self.facts)
-        new_facts = set(self.facts)
-        all_inferred_facts = list(self.facts)  # To keep track of all facts inferred
-        
-        # Loop until no new facts can be derived
-        while new_facts:
-            temp_facts = set()
-            for premise, conclusion in self.rules:
-                # If all premises of a rule are in the inferred facts, infer the conclusion
-                if all(p in inferred for p in premise):
-                    if conclusion not in inferred:
-                        temp_facts.add(conclusion)
-            # Add the new facts to the inferred facts
-            new_facts = temp_facts
-            inferred.update(new_facts)
-            all_inferred_facts.extend(new_facts)  # Add new facts to the list
+    def can_infer(self, premises):
+        """
+        Checks if all premises of a rule are satisfied by the current facts.
+        """
+        return all(premise in self.facts for premise in premises)
 
-            # If the query is found in the inferred facts, return True
-            if query in inferred:
-                return True, all_inferred_facts  # Query is provable, return the inferred facts
-        return False, all_inferred_facts  # Query cannot be derived
+    def infer_new_fact(self, conclusion):
+        """
+        Adds a new fact to the knowledge base if it hasn't been added already.
+        """
+        if conclusion not in self.facts and conclusion not in self.new_facts:
+            self.new_facts.add(conclusion)
 
-def get_input():
-    """Function to get user input for facts, rules, and queries."""
-    kb = KnowledgeBase()
-    
-    print("Enter facts (enter 'done' when finished):")
-    while True:
-        fact = input("Fact (e.g., A(John)): ")
-        if fact.lower() == 'done':
-            break
-        kb.add_fact(fact)
-    
-    print("Enter rules (enter 'done' when finished):")
-    while True:
-        rule_input = input("Rule (e.g., A(x),B(x) => C(x)): ")
-        if rule_input.lower() == 'done':
-            break
-        # Extract premise and conclusion from user input
-        premise_conclusion = rule_input.split('=>')
-        if len(premise_conclusion) == 2:
-            premise = premise_conclusion[0].strip().split(',')
-            conclusion = premise_conclusion[1].strip()
-            kb.add_rule(premise, conclusion)
-    
-    query = input("Enter the query you want to prove (e.g., C(John)): ")
-    return kb, query
+    def forward_chain(self):
+        """
+        Perform forward chaining to derive new facts and check if the query is provable.
+        Returns True if the query can be proved, False otherwise.
+        """
+        # Initialize known facts in the KB (rules without premises)
+        for premises, conclusion in self.kb:
+            if not premises:  # A rule with no premises is a fact
+                self.facts.add(conclusion)
 
-def main():
-    # Get input from the user
-    kb, query = get_input()
-    
-    # Perform forward chaining to prove the query
-    result, inferred_facts = kb.forward_chain(query)
-    
-    # Display results
-    if result:
-        print(f"The query '{query}' can be proven!")
-    else:
-        print(f"The query '{query}' cannot be proven.")
-    
-    print("\nAll inferred facts:")
-    for fact in inferred_facts:
-        print(fact)
+        while True:
+            self.new_facts = set()  # Reset newly inferred facts in each iteration
+
+            for rule in self.kb:
+                premises, conclusion = self.standardize_variables(rule)
+                if self.can_infer(premises):
+                    self.infer_new_fact(conclusion)
+
+            # Add all newly inferred facts to the set of known facts
+            self.facts.update(self.new_facts)
+
+            # Check if the query is among the known facts
+            if self.query in self.facts:
+                return True  # Query proved
+
+            # If no new facts are derived, stop the loop
+            if not self.new_facts:
+                break
+
+        return False  # Query cannot be proved
+
 
 if __name__ == "__main__":
-    main()
+    # Get user input for the knowledge base
+    print("Enter the number of rules in the Knowledge Base:")
+    num_rules = int(input())
+
+    kb = []
+    print("Enter each rule in the format 'premise1,premise2,... => conclusion' (leave premises empty for facts):")
+    for _ in range(num_rules):
+        rule = input().strip()
+        if "=>" in rule:
+            premises, conclusion = rule.split("=>")
+            premises = [p.strip() for p in premises.split(",") if p.strip()]
+            conclusion = conclusion.strip()
+            kb.append((premises, conclusion))
+        else:
+            kb.append(([], rule.strip()))  # Fact with no premises
+
+    # Get the query
+    print("Enter the query to be proved:")
+    query = input().strip()
+
+    # Perform Forward Chaining
+    fc = ForwardChaining(kb, query)
+    result = fc.forward_chain()
+
+    # Output the result
+    if result:
+        print(f"The query '{query}' is PROVABLE.")
+    else:
+        print(f"The query '{query}' CANNOT be proved.")
+
